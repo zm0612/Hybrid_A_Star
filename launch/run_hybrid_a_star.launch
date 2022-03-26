@@ -1,0 +1,29 @@
+<launch>
+    <arg name="fixed_frame" default="world"/>
+
+    <param name="robot_description" textfile="$(find hybrid_a_star)/model/car_model/default.urdf"/>
+    <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher"/>
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher"/>
+
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find hybrid_a_star)/rviz/display_hybrid_astar.rviz"/>
+
+    <!--static_transform_publisher x y z yaw pitch roll frame_id child_frame_id period_in_ms-->
+    <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster"
+          args="0 0 0 0 0 0 world map 100"/>
+
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find hybrid_a_star)/maps/map.yaml"/>
+
+    <node pkg="hybrid_a_star" type="run_hybrid_astar" name="run_hybrid_astar" output="screen"
+          launch-prefix="valgrind --leak-check=full --show-leak-kinds=all">
+        <param name="planner/steering_angle" value="15.0"/>
+        <param name="planner/steering_angle_discrete_num" value="1"/>
+        <param name="planner/wheel_base" value="2.0"/>
+        <param name="planner/segment_length" value="1.6"/>
+        <param name="planner/segment_length_discrete_num" value="8"/>
+        <param name="planner/steering_penalty" value="1.5"/>
+        <param name="planner/reversing_penalty" value="3.0"/>
+        <param name="planner/steering_change_penalty" value="2.0"/>
+        <param name="planner/shot_distance" value="5.0"/>
+    </node>
+
+</launch>
