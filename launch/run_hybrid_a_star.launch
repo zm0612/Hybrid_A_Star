@@ -13,8 +13,7 @@
 
     <node pkg="map_server" type="map_server" name="map_server" args="$(find hybrid_a_star)/maps/map.yaml"/>
 
-    <node pkg="hybrid_a_star" type="run_hybrid_astar" name="run_hybrid_astar" output="screen"
-          launch-prefix="valgrind --leak-check=full --show-leak-kinds=all">
+    <node pkg="hybrid_a_star" type="run_hybrid_astar" name="run_hybrid_astar" output="screen">
         <param name="planner/steering_angle" value="15.0"/>
         <param name="planner/steering_angle_discrete_num" value="1"/>
         <param name="planner/wheel_base" value="2.0"/>

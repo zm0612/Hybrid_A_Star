@@ -44,6 +44,13 @@ include_directories(
     ${catkin_INCLUDE_DIRS}
 )
 
+catkin_package(
+    #  INCLUDE_DIRS include
+    #  LIBRARIES path_searcher
+    #  CATKIN_DEPENDS nav_mags roscpp tf
+    #  DEPENDS system_lib
+)
+
 add_library(
     PATH_SEARCHER_LIB SHARED
     src/rs_path.cpp
@@ -53,6 +60,7 @@ add_library(
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
 )
+
 target_link_libraries(
     PATH_SEARCHER_LIB
     ${catkin_LIBRARIES}
