@@ -75,6 +75,8 @@ roslaunch hybrid_a_star run_hybrid_a_star.launch
 
 > I provide multiple maps, you just need to modify the variable image in `hybrid_a_star/maps/map.yaml` file.
 
+> If your start and end points are too close to obstacles, the collision detection mechanism may be triggered and no feasible paths will be searched and displayed
+
 ## 5. References
 
 (1). [Practical Search Techniques in Path Planning for Autonomous Driving](https://ai.stanford.edu/~ddolgov/papers/dolgov_gpp_stair08.pdf)
