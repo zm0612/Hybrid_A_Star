@@ -34,6 +34,7 @@ Since the author did not open source the algorithm, it took me weeks to reproduc
 
 ```shell
 sudo apt-get install ros-melodic-costmap-*
+sudo apt-get install ros-melodic-map-server
 sudo apt-get install ros-melodic-tf
 ```
 
