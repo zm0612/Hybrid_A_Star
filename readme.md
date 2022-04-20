@@ -55,7 +55,7 @@ sudo apt-get install libgoogle-glog-dev
 ```shell
 # new folder
 mkdir hybrid_a_star_ws/src -p
-cd hybrid_a_star/src
+cd hybrid_a_star_ws/src
 
 # Clone the repository
 git clone https://github.com/zm0612/Hybrid_A_Star.git
