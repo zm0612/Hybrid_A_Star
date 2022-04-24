@@ -423,8 +423,10 @@ void HybridAStar::DynamicModel(const double &step_size, const double &phi,
 
 double HybridAStar::Mod2Pi(const double &x) {
     double v = fmod(x, 2 * M_PI);
-
-    if (v > M_PI) {
+  
+      if (v < -M_PI) {
+        v += 2.0 * M_PI;
+    } else if (v > M_PI) {
         v -= 2.0 * M_PI;
     }
 
