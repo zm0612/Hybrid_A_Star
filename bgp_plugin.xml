@@ -1,0 +1,9 @@
+<library path="lib/libhybrid_astar_global_planner">
+  <class
+    name="hybrid_astar_global_planner/HybridAstarGlobalPlanner"
+    type="hybrid_astar_global_planner::HybridAstarGlobalPlanner"
+    base_class_type="nav_core::BaseGlobalPlanner">
+
+    <description>This is a global planner plugin for navgraph-based path generation.</description>
+  </class>
+</library>

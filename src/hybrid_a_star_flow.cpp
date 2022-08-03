@@ -28,6 +28,7 @@
 #include "hybrid_a_star/hybrid_a_star_flow.h"
 
 #include <nav_msgs/Path.h>
+#include <std_msgs/Float32.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <tf/transform_datatypes.h>
@@ -46,43 +47,45 @@ double Mod2Pi(const double &x) {
 }
 
 HybridAStarFlow::HybridAStarFlow(ros::NodeHandle &nh) {
-    double steering_angle = nh.param("planner/steering_angle", 10);
-    int steering_angle_discrete_num = nh.param("planner/steering_angle_discrete_num", 1);
-    double wheel_base = nh.param("planner/wheel_base", 1.0);
-    double segment_length = nh.param("planner/segment_length", 1.6);
-    int segment_length_discrete_num = nh.param("planner/segment_length_discrete_num", 8);
-    double steering_penalty = nh.param("planner/steering_penalty", 1.05);
-    double steering_change_penalty = nh.param("planner/steering_change_penalty", 1.5);
-    double reversing_penalty = nh.param("planner/reversing_penalty", 2.0);
+    double steering_angle = nh.param("planner/steering_angle", 60);
+    int steering_angle_discrete_num = nh.param("planner/steering_angle_discrete_num", 1); //1
+    double wheel_base = nh.param("planner/wheel_base", 1.7); 
+    double segment_length = nh.param("planner/segment_length", 1.6); //1.6
+    int segment_length_discrete_num = nh.param("planner/segment_length_discrete_num", 8); //8
+    double steering_penalty = nh.param("planner/steering_penalty", 2); //1.05
+    double steering_change_penalty = nh.param("planner/steering_change_penalty", 2); //1.5
+    double reversing_penalty = nh.param("planner/reversing_penalty", 0.5); //2.0
     double shot_distance = nh.param("planner/shot_distance", 5.0);
 
     kinodynamic_astar_searcher_ptr_ = std::make_shared<HybridAStar>(
             steering_angle, steering_angle_discrete_num, segment_length, segment_length_discrete_num, wheel_base,
             steering_penalty, reversing_penalty, steering_change_penalty, shot_distance
     );
-    costmap_sub_ptr_ = std::make_shared<CostMapSubscriber>(nh, "/map", 1);
-    init_pose_sub_ptr_ = std::make_shared<InitPoseSubscriber2D>(nh, "/initialpose", 1);
-    goal_pose_sub_ptr_ = std::make_shared<GoalPoseSubscriber2D>(nh, "/move_base_simple/goal", 1);
 
+    costmap_sub_ptr_ = std::make_shared<CostMapSubscriber>(nh, "/map", 1);
     path_pub_ = nh.advertise<nav_msgs::Path>("searched_path", 1);
     searched_tree_pub_ = nh.advertise<visualization_msgs::Marker>("searched_tree", 1);
     vehicle_path_pub_ = nh.advertise<visualization_msgs::MarkerArray>("vehicle_path", 1);
 
+    ROS_INFO("HYBRID ASTAR STARTED...");
+
     has_map_ = false;
 }
 
+HybridAStarFlow::~HybridAStarFlow()
+	{
+	}
+
 void HybridAStarFlow::Run() {
-    ReadData();
-
     if (!has_map_) {
-        if (costmap_deque_.empty()) {
-            return;
-        }
-
+        
+        while (costmap_deque_.empty()) {
+            costmap_sub_ptr_->ParseData(costmap_deque_);
+         }
+    
         current_costmap_ptr_ = costmap_deque_.front();
         costmap_deque_.pop_front();
-
-        const double map_resolution = 0.2;
+        const double map_resolution = 0.025;
         kinodynamic_astar_searcher_ptr_->Init(
                 current_costmap_ptr_->info.origin.position.x,
                 1.0 * current_costmap_ptr_->info.width * current_costmap_ptr_->info.resolution,
@@ -91,132 +94,132 @@ void HybridAStarFlow::Run() {
                 current_costmap_ptr_->info.resolution,
                 map_resolution
         );
-
-        unsigned int map_w = std::floor(current_costmap_ptr_->info.width / map_resolution);
-        unsigned int map_h = std::floor(current_costmap_ptr_->info.height / map_resolution);
+        ROS_INFO("MAP PROCESSED...2 : %i,%i",current_costmap_ptr_->info.width,current_costmap_ptr_->info.height);
+        unsigned int map_w = std::floor(current_costmap_ptr_->info.width);
+        unsigned int map_h = std::floor(current_costmap_ptr_->info.height);
         for (unsigned int w = 0; w < map_w; ++w) {
             for (unsigned int h = 0; h < map_h; ++h) {
                 auto x = static_cast<unsigned int> ((w + 0.5) * map_resolution
                                                     / current_costmap_ptr_->info.resolution);
                 auto y = static_cast<unsigned int> ((h + 0.5) * map_resolution
                                                     / current_costmap_ptr_->info.resolution);
-
-                if (current_costmap_ptr_->data[y * current_costmap_ptr_->info.width + x]) {
+               if (current_costmap_ptr_->data[y * current_costmap_ptr_->info.width + x] > 0) {
                     kinodynamic_astar_searcher_ptr_->SetObstacle(w, h);
                 }
             }
         }
+        ROS_INFO("OBSTACLE SETS...3");
         has_map_ = true;
     }
     costmap_deque_.clear();
+    
+        //InitPoseData();
+        //double start_yaw = tf::getYaw(current_init_pose_ptr_->pose.pose.orientation);
+        //double goal_yaw = tf::getYaw(current_goal_pose_ptr_->pose.orientation);
+        double start_yaw = tf::getYaw(init_pose_.pose.orientation);
+        double goal_yaw = tf::getYaw(move_base_goal_.pose.orientation);
 
-    while (HasStartPose() && HasGoalPose()) {
-        InitPoseData();
-
-        double start_yaw = tf::getYaw(current_init_pose_ptr_->pose.pose.orientation);
-        double goal_yaw = tf::getYaw(current_goal_pose_ptr_->pose.orientation);
-
+        // Vec3d start_state = Vec3d(
+        //         current_init_pose_ptr_->pose.pose.position.x,
+        //         current_init_pose_ptr_->pose.pose.position.y,
+        //         start_yaw
+        // );
         Vec3d start_state = Vec3d(
-                current_init_pose_ptr_->pose.pose.position.x,
-                current_init_pose_ptr_->pose.pose.position.y,
-                start_yaw
-        );
+                 init_pose_.pose.position.x,
+                 init_pose_.pose.position.y,
+                 start_yaw
+         );
+        ROS_INFO("----POSITION INITIALE %f ----", start_yaw);
         Vec3d goal_state = Vec3d(
-                current_goal_pose_ptr_->pose.position.x,
-                current_goal_pose_ptr_->pose.position.y,
+                move_base_goal_.pose.position.x,
+                move_base_goal_.pose.position.y,
                 goal_yaw
         );
+
 
         if (kinodynamic_astar_searcher_ptr_->Search(start_state, goal_state)) {
             auto path = kinodynamic_astar_searcher_ptr_->GetPath();
             PublishPath(path);
-            PublishVehiclePath(path, 4.0, 2.0, 5u);
-            PublishSearchedTree(kinodynamic_astar_searcher_ptr_->GetSearchedTree());
 
-            nav_msgs::Path path_ros;
-            geometry_msgs::PoseStamped pose_stamped;
+            // nav_msgs::Path path_ros;
+            // geometry_msgs::PoseStamped pose_stamped;
 
-            for (const auto &pose: path) {
-                pose_stamped.header.frame_id = "world";
-                pose_stamped.pose.position.x = pose.x();
-                pose_stamped.pose.position.y = pose.y();
-                pose_stamped.pose.position.z = 0.0;
+            // for (const auto &pose: path) {
+            //     pose_stamped.header.frame_id = "map";
+            //     pose_stamped.pose.position.x = pose.x();
+            //     pose_stamped.pose.position.y = pose.y();
+            //     pose_stamped.pose.position.z = 0.0;
 
-                pose_stamped.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, pose.z());
+            //     pose_stamped.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, pose.z());
 
-                path_ros.poses.emplace_back(pose_stamped);
-            }
+            //     path_ros.poses.emplace_back(pose_stamped);
+            // }
 
-            path_ros.header.frame_id = "world";
-            path_ros.header.stamp = ros::Time::now();
-            static tf::TransformBroadcaster transform_broadcaster;
-            for (const auto &pose: path_ros.poses) {
-                tf::Transform transform;
-                transform.setOrigin(tf::Vector3(pose.pose.position.x, pose.pose.position.y, 0.0));
+            // path_ros.header.frame_id = "map";
+            // path_ros.header.stamp = ros::Time::now();
+            // static tf::TransformBroadcaster transform_broadcaster;
+            // for (const auto &pose: path_ros.poses) {
+            //     tf::Transform transform;
+            //     transform.setOrigin(tf::Vector3(pose.pose.position.x, pose.pose.position.y, 0.0));
 
-                tf::Quaternion q;
-                q.setX(pose.pose.orientation.x);
-                q.setY(pose.pose.orientation.y);
-                q.setZ(pose.pose.orientation.z);
-                q.setW(pose.pose.orientation.w);
-                transform.setRotation(q);
+            //     tf::Quaternion q;
+            //     q.setX(pose.pose.orientation.x);
+            //     q.setY(pose.pose.orientation.y);
+            //     q.setZ(pose.pose.orientation.z);
+            //     q.setW(pose.pose.orientation.w);
+            //     transform.setRotation(q);
 
-                transform_broadcaster.sendTransform(tf::StampedTransform(transform,
-                                                                         ros::Time::now(), "world",
-                                                                         "ground_link")
-                );
+            //     transform_broadcaster.sendTransform(tf::StampedTransform(transform,
+            //                                                              ros::Time::now(), "world",
+            //                                                              "ground_link")
+            //     );
 
-                ros::Duration(0.05).sleep();
-            }
+            //     ros::Duration(0.05).sleep();
+            // }
         }
 
 
         // debug
 //        std::cout << "visited nodes: " << kinodynamic_astar_searcher_ptr_->GetVisitedNodesNumber() << std::endl;
         kinodynamic_astar_searcher_ptr_->Reset();
+        ROS_INFO("RESET DONE");
     }
-}
+//}
 
 void HybridAStarFlow::ReadData() {
-    costmap_sub_ptr_->ParseData(costmap_deque_);
     init_pose_sub_ptr_->ParseData(init_pose_deque_);
-    goal_pose_sub_ptr_->ParseData(goal_pose_deque_);
 }
 
 void HybridAStarFlow::InitPoseData() {
     current_init_pose_ptr_ = init_pose_deque_.front();
     init_pose_deque_.pop_front();
+    
 
-    current_goal_pose_ptr_ = goal_pose_deque_.front();
-    goal_pose_deque_.pop_front();
 }
 
-bool HybridAStarFlow::HasGoalPose() {
-    return !goal_pose_deque_.empty();
-}
-
-bool HybridAStarFlow::HasStartPose() {
-    return !init_pose_deque_.empty();
-}
 
 void HybridAStarFlow::PublishPath(const VectorVec3d &path) {
     nav_msgs::Path nav_path;
-
+    ros::Time plan_time = ros::Time::now();
     geometry_msgs::PoseStamped pose_stamped;
     for (const auto &pose: path) {
-        pose_stamped.header.frame_id = "world";
+        pose_stamped.header.frame_id = "map";
+        pose_stamped.header.stamp = plan_time;
         pose_stamped.pose.position.x = pose.x();
         pose_stamped.pose.position.y = pose.y();
         pose_stamped.pose.position.z = 0.0;
         pose_stamped.pose.orientation = tf::createQuaternionMsgFromYaw(pose.z());
 
         nav_path.poses.emplace_back(pose_stamped);
+
+        plan_gp_ros.push_back(pose_stamped);
     }
 
-    nav_path.header.frame_id = "world";
+    nav_path.header.frame_id = "map";
     nav_path.header.stamp = timestamp_;
 
     path_pub_.publish(nav_path);
+    
 }
 
 void HybridAStarFlow::PublishVehiclePath(const VectorVec3d &path, double width,
@@ -230,7 +233,7 @@ void HybridAStarFlow::PublishVehiclePath(const VectorVec3d &path, double width,
             vehicle.action = 3;
         }
 
-        vehicle.header.frame_id = "world";
+        vehicle.header.frame_id = "map";
         vehicle.header.stamp = ros::Time::now();
         vehicle.type = visualization_msgs::Marker::CUBE;
         vehicle.id = static_cast<int>(i / vehicle_interval);

@@ -37,6 +37,7 @@ find_package(
     nav_msgs
     roscpp
     tf
+    nav_core
 )
 
 include_directories(
@@ -45,27 +46,50 @@ include_directories(
 )
 
 catkin_package(
-    #  INCLUDE_DIRS include
-    #  LIBRARIES path_searcher
+      INCLUDE_DIRS include
+      LIBRARIES hybrid_a_star 
     #  CATKIN_DEPENDS nav_mags roscpp tf
     #  DEPENDS system_lib
 )
 
 add_library(
-    PATH_SEARCHER_LIB SHARED
+    ${PROJECT_NAME}
     src/rs_path.cpp
     src/costmap_subscriber.cpp
     src/goal_pose_subscriber.cpp
     src/init_pose_subscriber.cpp
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
+    src/hybrid_astar_global_planner.cpp
 )
 
+#add_library(${PROJECT_NAME}
+ #  src/hybrid_astar_global_planner.cpp)
+  # target_link_libraries(${PROJECT_NAME}
+   #${catkin_LIBRARIES} 
+#)
+
 target_link_libraries(
-    PATH_SEARCHER_LIB
+    ${PROJECT_NAME}
     ${catkin_LIBRARIES}
     ${GLOG_LIBRARIES}
 )
 
 add_executable(run_hybrid_astar app/run_hybrid_astar.cpp)
-target_link_libraries(run_hybrid_astar PATH_SEARCHER_LIB)
+target_link_libraries(run_hybrid_astar ${PROJECT_NAME})
+
+install(
+  TARGETS ${PROJECT_NAME}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
+install(
+  DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+
+install(
+  FILES bgp_plugin.xml 
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)

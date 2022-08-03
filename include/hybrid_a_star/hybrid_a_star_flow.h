@@ -37,11 +37,16 @@
 
 class HybridAStarFlow {
 public:
-    HybridAStarFlow() = default;
+    HybridAStarFlow();
 
-    explicit HybridAStarFlow(ros::NodeHandle &nh);
-
+    HybridAStarFlow(ros::NodeHandle &nh);
+    
+    ~HybridAStarFlow();
     void Run();
+
+    std::vector<geometry_msgs::PoseStamped> plan_gp_ros;
+    geometry_msgs::PoseStamped move_base_goal_;
+    geometry_msgs::PoseStamped init_pose_;
 
 private:
     void InitPoseData();
