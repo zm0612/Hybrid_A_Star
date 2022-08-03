@@ -94,7 +94,6 @@ void HybridAStarFlow::Run() {
                 current_costmap_ptr_->info.resolution,
                 map_resolution
         );
-        ROS_INFO("MAP PROCESSED...2 : %i,%i",current_costmap_ptr_->info.width,current_costmap_ptr_->info.height);
         unsigned int map_w = std::floor(current_costmap_ptr_->info.width);
         unsigned int map_h = std::floor(current_costmap_ptr_->info.height);
         for (unsigned int w = 0; w < map_w; ++w) {
@@ -108,28 +107,18 @@ void HybridAStarFlow::Run() {
                 }
             }
         }
-        ROS_INFO("OBSTACLE SETS...3");
         has_map_ = true;
     }
     costmap_deque_.clear();
     
-        //InitPoseData();
-        //double start_yaw = tf::getYaw(current_init_pose_ptr_->pose.pose.orientation);
-        //double goal_yaw = tf::getYaw(current_goal_pose_ptr_->pose.orientation);
         double start_yaw = tf::getYaw(init_pose_.pose.orientation);
         double goal_yaw = tf::getYaw(move_base_goal_.pose.orientation);
 
-        // Vec3d start_state = Vec3d(
-        //         current_init_pose_ptr_->pose.pose.position.x,
-        //         current_init_pose_ptr_->pose.pose.position.y,
-        //         start_yaw
-        // );
         Vec3d start_state = Vec3d(
                  init_pose_.pose.position.x,
                  init_pose_.pose.position.y,
                  start_yaw
          );
-        ROS_INFO("----POSITION INITIALE %f ----", start_yaw);
         Vec3d goal_state = Vec3d(
                 move_base_goal_.pose.position.x,
                 move_base_goal_.pose.position.y,
@@ -182,9 +171,8 @@ void HybridAStarFlow::Run() {
         // debug
 //        std::cout << "visited nodes: " << kinodynamic_astar_searcher_ptr_->GetVisitedNodesNumber() << std::endl;
         kinodynamic_astar_searcher_ptr_->Reset();
-        ROS_INFO("RESET DONE");
     }
-//}
+
 
 void HybridAStarFlow::ReadData() {
     init_pose_sub_ptr_->ParseData(init_pose_deque_);
