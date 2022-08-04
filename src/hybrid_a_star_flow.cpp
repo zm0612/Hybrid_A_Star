@@ -174,16 +174,7 @@ void HybridAStarFlow::Run() {
     }
 
 
-void HybridAStarFlow::ReadData() {
-    init_pose_sub_ptr_->ParseData(init_pose_deque_);
-}
 
-void HybridAStarFlow::InitPoseData() {
-    current_init_pose_ptr_ = init_pose_deque_.front();
-    init_pose_deque_.pop_front();
-    
-
-}
 
 
 void HybridAStarFlow::PublishPath(const VectorVec3d &path) {
