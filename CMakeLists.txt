@@ -60,14 +60,13 @@ add_library(
     src/init_pose_subscriber.cpp
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
-    src/hybrid_astar_global_planner.cpp
 )
 
-#add_library(${PROJECT_NAME}
- #  src/hybrid_astar_global_planner.cpp)
-  # target_link_libraries(${PROJECT_NAME}
-   #${catkin_LIBRARIES} 
-#)
+add_library(hybrid_astar_global_planner
+   src/hybrid_astar_global_planner.cpp)
+   target_link_libraries(hybrid_astar_global_planner
+   ${catkin_LIBRARIES} hybrid_a_star
+)
 
 target_link_libraries(
     ${PROJECT_NAME}
