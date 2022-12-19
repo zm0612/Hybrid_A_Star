@@ -60,14 +60,14 @@ add_library(
     src/init_pose_subscriber.cpp
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
-    src/hybrid_astar_global_planner.cpp
+    #src/hybrid_astar_global_planner.cpp
 )
 
-#add_library(${PROJECT_NAME}
- #  src/hybrid_astar_global_planner.cpp)
-  # target_link_libraries(${PROJECT_NAME}
-   #${catkin_LIBRARIES} 
-#)
+add_library(hybrid_astar_global_planner
+   src/hybrid_astar_global_planner.cpp)
+   target_link_libraries(hybrid_astar_global_planner
+   ${catkin_LIBRARIES} hybrid_a_star
+)
 
 target_link_libraries(
     ${PROJECT_NAME}
@@ -79,7 +79,7 @@ add_executable(run_hybrid_astar app/run_hybrid_astar.cpp)
 target_link_libraries(run_hybrid_astar ${PROJECT_NAME})
 
 install(
-  TARGETS ${PROJECT_NAME}
+  TARGETS ${PROJECT_NAME} 
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}

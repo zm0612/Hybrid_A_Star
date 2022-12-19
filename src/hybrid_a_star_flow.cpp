@@ -49,13 +49,13 @@ double Mod2Pi(const double &x) {
 HybridAStarFlow::HybridAStarFlow(ros::NodeHandle &nh) {
     double steering_angle = nh.param("planner/steering_angle", 60);
     int steering_angle_discrete_num = nh.param("planner/steering_angle_discrete_num", 1); //1
-    double wheel_base = nh.param("planner/wheel_base", 1.7); 
-    double segment_length = nh.param("planner/segment_length", 1.6); //1.6
+    double wheel_base = nh.param("planner/wheel_base", 2); 
+    double segment_length = nh.param("planner/segment_length", 2); //1.6
     int segment_length_discrete_num = nh.param("planner/segment_length_discrete_num", 8); //8
-    double steering_penalty = nh.param("planner/steering_penalty", 2); //1.05
-    double steering_change_penalty = nh.param("planner/steering_change_penalty", 2); //1.5
-    double reversing_penalty = nh.param("planner/reversing_penalty", 0.5); //2.0
-    double shot_distance = nh.param("planner/shot_distance", 5.0);
+    double steering_penalty = nh.param("planner/steering_penalty", 2); //2
+    double steering_change_penalty = nh.param("planner/steering_change_penalty", 2); //2
+    double reversing_penalty = nh.param("planner/reversing_penalty", 2); //2.0
+    double shot_distance = nh.param("planner/shot_distance", 10.0); //5.0
 
     kinodynamic_astar_searcher_ptr_ = std::make_shared<HybridAStar>(
             steering_angle, steering_angle_discrete_num, segment_length, segment_length_discrete_num, wheel_base,
