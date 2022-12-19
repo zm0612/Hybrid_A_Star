@@ -60,7 +60,10 @@ add_library(
     src/init_pose_subscriber.cpp
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
+<<<<<<< HEAD
     #src/hybrid_astar_global_planner.cpp
+=======
+>>>>>>> f3c30d717d4183ec46414153084b232c2d006dc3
 )
 
 add_library(hybrid_astar_global_planner
