@@ -590,7 +590,8 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
                     neighbor_node_ptr->parent_node_ = current_node_ptr;
                     neighbor_node_ptr->node_status_ = StateNode::IN_OPENSET;
 
-                    delete state_node_map_[index.x()][index.y()][index.z()];
+                    /// TODO: This will cause a memory leak
+                    //delete state_node_map_[index.x()][index.y()][index.z()];
                     state_node_map_[index.x()][index.y()][index.z()] = neighbor_node_ptr;
                 } else {
                     delete neighbor_node_ptr;
