@@ -12,6 +12,14 @@
     <build_export_depend>std_msgs</build_export_depend>
     <exec_depend>roscpp</exec_depend>
     <exec_depend>std_msgs</exec_depend>
-    <export>
-    </export>
+    <depend>nav_core</depend>
+    <depend>pluginlib</depend>
+
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <nav_core plugin="${prefix}/bgp_plugin.xml" />
+    <!-- Other tools can request additional information be placed here -->
+
+  </export>
 </package>

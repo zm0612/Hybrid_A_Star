@@ -65,7 +65,7 @@ HybridAStar::~HybridAStar() {
 
 void HybridAStar::Init(double x_lower, double x_upper, double y_lower, double y_upper,
                        double state_grid_resolution, double map_grid_resolution) {
-    SetVehicleShape(4.7, 2.0, 1.3);
+    SetVehicleShape(2.63, 1.22, 0);
 
     map_x_lower_ = x_lower;
     map_x_upper_ = x_upper;
@@ -494,7 +494,7 @@ double HybridAStar::ComputeG(const StateNode::Ptr &current_node_ptr,
 
 bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
     Timer search_used_time;
-
+    
     double neighbor_time = 0.0, compute_h_time = 0.0, compute_g_time = 0.0;
 
     const Vec3i start_grid_index = State2Index(start_state);
@@ -679,6 +679,7 @@ void HybridAStar::ReleaseMemory() {
     }
 
     terminal_node_ptr_ = nullptr;
+
 }
 
 __attribute__((unused)) double HybridAStar::GetPathLength() const {
