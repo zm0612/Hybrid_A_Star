@@ -60,70 +60,66 @@ HybridAStarFlow::HybridAStarFlow(ros::NodeHandle &nh) {
             steering_angle, steering_angle_discrete_num, segment_length, segment_length_discrete_num, wheel_base,
             steering_penalty, reversing_penalty, steering_change_penalty, shot_distance
     );
-    costmap_sub_ptr_ = std::make_shared<CostMapSubscriber>(nh, "/map", 1);
-    init_pose_sub_ptr_ = std::make_shared<InitPoseSubscriber2D>(nh, "/initialpose", 1);
-    goal_pose_sub_ptr_ = std::make_shared<GoalPoseSubscriber2D>(nh, "/move_base_simple/goal", 1);
 
     path_pub_ = nh.advertise<nav_msgs::Path>("searched_path", 1);
     searched_tree_pub_ = nh.advertise<visualization_msgs::Marker>("searched_tree", 1);
     vehicle_path_pub_ = nh.advertise<visualization_msgs::MarkerArray>("vehicle_path", 1);
 
-    has_map_ = false;
+    costmap_sub   = nh.subscribe<nav_msgs::OccupancyGrid>("/map", 1, &HybridAStarFlow::CallbackCostMap, this);
+    init_pose_sub = nh.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/initialpose", 1, &HybridAStarFlow::CallbackInitPose, this);
+    goal_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &HybridAStarFlow::CallbackGoalPose, this);
+
+    is_costmap_init  = false;
+    is_costmap_get   = false;
+    is_init_pose_get = false;
+    is_goal_pose_get = false;
 }
 
 void HybridAStarFlow::Run() {
-    ReadData();
-
-    if (!has_map_) {
-        if (costmap_deque_.empty()) {
+    if (!is_costmap_init) {
+        if (!is_costmap_get) {
             return;
         }
 
-        current_costmap_ptr_ = costmap_deque_.front();
-        costmap_deque_.pop_front();
-
         const double map_resolution = 0.2;
         kinodynamic_astar_searcher_ptr_->Init(
-                current_costmap_ptr_->info.origin.position.x,
-                1.0 * current_costmap_ptr_->info.width * current_costmap_ptr_->info.resolution,
-                current_costmap_ptr_->info.origin.position.y,
-                1.0 * current_costmap_ptr_->info.height * current_costmap_ptr_->info.resolution,
-                current_costmap_ptr_->info.resolution,
+                current_costmap.info.origin.position.x,
+                1.0 * current_costmap.info.width * current_costmap.info.resolution,
+                current_costmap.info.origin.position.y,
+                1.0 * current_costmap.info.height * current_costmap.info.resolution,
+                current_costmap.info.resolution,
                 map_resolution
         );
 
-        unsigned int map_w = std::floor(current_costmap_ptr_->info.width / map_resolution);
-        unsigned int map_h = std::floor(current_costmap_ptr_->info.height / map_resolution);
+        unsigned int map_w = std::floor(current_costmap.info.width / map_resolution);
+        unsigned int map_h = std::floor(current_costmap.info.height / map_resolution);
         for (unsigned int w = 0; w < map_w; ++w) {
             for (unsigned int h = 0; h < map_h; ++h) {
                 auto x = static_cast<unsigned int> ((w + 0.5) * map_resolution
-                                                    / current_costmap_ptr_->info.resolution);
+                                                    / current_costmap.info.resolution);
                 auto y = static_cast<unsigned int> ((h + 0.5) * map_resolution
-                                                    / current_costmap_ptr_->info.resolution);
+                                                    / current_costmap.info.resolution);
 
-                if (current_costmap_ptr_->data[y * current_costmap_ptr_->info.width + x]) {
+                if (current_costmap.data[y * current_costmap.info.width + x]) {
                     kinodynamic_astar_searcher_ptr_->SetObstacle(w, h);
                 }
             }
         }
-        has_map_ = true;
+        is_costmap_init = true;
     }
-    costmap_deque_.clear();
 
-    while (HasStartPose() && HasGoalPose()) {
-        InitPoseData();
-
-        double start_yaw = tf::getYaw(current_init_pose_ptr_->pose.pose.orientation);
-        double goal_yaw = tf::getYaw(current_goal_pose_ptr_->pose.orientation);
+    if (is_init_pose_get && is_goal_pose_get) {
+        double start_yaw = tf::getYaw(current_init_pose.pose.pose.orientation);
+        double goal_yaw = tf::getYaw(current_goal_pose.pose.orientation);
 
         Vec3d start_state = Vec3d(
-                current_init_pose_ptr_->pose.pose.position.x,
-                current_init_pose_ptr_->pose.pose.position.y,
+                current_init_pose.pose.pose.position.x,
+                current_init_pose.pose.pose.position.y,
                 start_yaw
         );
         Vec3d goal_state = Vec3d(
-                current_goal_pose_ptr_->pose.position.x,
-                current_goal_pose_ptr_->pose.position.y,
+                current_goal_pose.pose.position.x,
+                current_goal_pose.pose.position.y,
                 goal_yaw
         );
 
@@ -170,33 +166,28 @@ void HybridAStarFlow::Run() {
             }
         }
 
-
         // debug
-//        std::cout << "visited nodes: " << kinodynamic_astar_searcher_ptr_->GetVisitedNodesNumber() << std::endl;
+        // std::cout << "visited nodes: " << kinodynamic_astar_searcher_ptr_->GetVisitedNodesNumber() << std::endl;
         kinodynamic_astar_searcher_ptr_->Reset();
+
+        is_init_pose_get = false;
+        is_goal_pose_get = false;
     }
 }
 
-void HybridAStarFlow::ReadData() {
-    costmap_sub_ptr_->ParseData(costmap_deque_);
-    init_pose_sub_ptr_->ParseData(init_pose_deque_);
-    goal_pose_sub_ptr_->ParseData(goal_pose_deque_);
+void HybridAStarFlow::CallbackCostMap(const nav_msgs::OccupancyGridConstPtr &msg_costmap) {
+    this->current_costmap = *msg_costmap;
+    this->is_costmap_get = true;
 }
 
-void HybridAStarFlow::InitPoseData() {
-    current_init_pose_ptr_ = init_pose_deque_.front();
-    init_pose_deque_.pop_front();
-
-    current_goal_pose_ptr_ = goal_pose_deque_.front();
-    goal_pose_deque_.pop_front();
+void HybridAStarFlow::CallbackInitPose(const geometry_msgs::PoseWithCovarianceStampedConstPtr &msg_initpose) {
+    this->current_init_pose = *msg_initpose;
+    is_init_pose_get = true;
 }
 
-bool HybridAStarFlow::HasGoalPose() {
-    return !goal_pose_deque_.empty();
-}
-
-bool HybridAStarFlow::HasStartPose() {
-    return !init_pose_deque_.empty();
+void HybridAStarFlow::CallbackGoalPose(const geometry_msgs::PoseStampedConstPtr &msg_goalpose) {
+    this->current_goal_pose = *msg_goalpose;
+    is_goal_pose_get = true;
 }
 
 void HybridAStarFlow::PublishPath(const VectorVec3d &path) {
