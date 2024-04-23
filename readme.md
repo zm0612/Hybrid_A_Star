@@ -22,7 +22,7 @@ Since the author did not open source the algorithm, it took me weeks to reproduc
 
 <img src="images/img1.png" alt="img1" style="zoom: 33%;" />
 
-**Case 3**
+**Case 4**
 
 <img src="images/img2.png" alt="img2" style="zoom: 33%;" />
 
@@ -30,7 +30,7 @@ Since the author did not open source the algorithm, it took me weeks to reproduc
 
 (1). **C++11 or C++0x Compiler**
 
-(2). **ROS Melodic**: I'm developing on the melodic version. Using other versions of ROS, it should also work normally
+(2). **ROS Melodic**: I'm developing on the melodic version. Using other versions of ROS 1, it should also work normally
 
 ```shell
 sudo apt-get install ros-melodic-costmap-*
