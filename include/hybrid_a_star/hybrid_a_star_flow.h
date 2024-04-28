@@ -29,11 +29,11 @@
 #define HYBRID_A_STAR_HYBRID_A_STAR_FLOW_H
 
 #include "hybrid_a_star.h"
-#include "costmap_subscriber.h"
-#include "init_pose_subscriber.h"
-#include "goal_pose_subscriber.h"
 
 #include <ros/ros.h>
+#include <nav_msgs/OccupancyGrid.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 class HybridAStarFlow {
 public:
@@ -46,11 +46,11 @@ public:
 private:
     void InitPoseData();
 
-    void ReadData();
+    void CallbackCostMap(const nav_msgs::OccupancyGridConstPtr &msg_costmap);
 
-    bool HasStartPose();
+    void CallbackInitPose(const geometry_msgs::PoseWithCovarianceStampedConstPtr &msg_initpose);
 
-    bool HasGoalPose();
+    void CallbackGoalPose(const geometry_msgs::PoseStampedConstPtr &msg_goalpose);
 
     void PublishPath(const VectorVec3d &path);
 
@@ -61,25 +61,23 @@ private:
 
 private:
     std::shared_ptr<HybridAStar> kinodynamic_astar_searcher_ptr_;
-    std::shared_ptr<CostMapSubscriber> costmap_sub_ptr_;
-    std::shared_ptr<InitPoseSubscriber2D> init_pose_sub_ptr_;
-    std::shared_ptr<GoalPoseSubscriber2D> goal_pose_sub_ptr_;
+    ros::Subscriber costmap_sub;
+    ros::Subscriber init_pose_sub;
+    ros::Subscriber goal_pose_sub;
+    bool is_costmap_init;
+    bool is_costmap_get;
+    bool is_init_pose_get;
+    bool is_goal_pose_get;
 
     ros::Publisher path_pub_;
     ros::Publisher searched_tree_pub_;
     ros::Publisher vehicle_path_pub_;
 
-    std::deque<geometry_msgs::PoseWithCovarianceStampedPtr> init_pose_deque_;
-    std::deque<geometry_msgs::PoseStampedPtr> goal_pose_deque_;
-    std::deque<nav_msgs::OccupancyGridPtr> costmap_deque_;
-
-    geometry_msgs::PoseWithCovarianceStampedPtr current_init_pose_ptr_;
-    geometry_msgs::PoseStampedPtr current_goal_pose_ptr_;
-    nav_msgs::OccupancyGridPtr current_costmap_ptr_;
+    geometry_msgs::PoseWithCovarianceStamped current_init_pose;
+    geometry_msgs::PoseStamped               current_goal_pose;
+    nav_msgs::OccupancyGrid                  current_costmap;
 
     ros::Time timestamp_;
-
-    bool has_map_{};
 };
 
 #endif //HYBRID_A_STAR_HYBRID_A_STAR_FLOW_H

@@ -54,9 +54,6 @@ catkin_package(
 add_library(
     PATH_SEARCHER_LIB SHARED
     src/rs_path.cpp
-    src/costmap_subscriber.cpp
-    src/goal_pose_subscriber.cpp
-    src/init_pose_subscriber.cpp
     src/hybrid_a_star.cpp
     src/hybrid_a_star_flow.cpp
 )
