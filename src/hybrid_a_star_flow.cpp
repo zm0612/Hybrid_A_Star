@@ -33,7 +33,7 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 
-double Mod2Pi(const double &x) {
+__attribute__((unused)) double Mod2Pi(const double &x) {
     double v = fmod(x, 2 * M_PI);
 
     if (v < -M_PI) {
@@ -82,26 +82,20 @@ void HybridAStarFlow::Run() {
         current_costmap_ptr_ = costmap_deque_.front();
         costmap_deque_.pop_front();
 
-        const double map_resolution = 0.2;
+        const double map_resolution = static_cast<float>(current_costmap_ptr_->info.resolution);
         kinodynamic_astar_searcher_ptr_->Init(
                 current_costmap_ptr_->info.origin.position.x,
                 1.0 * current_costmap_ptr_->info.width * current_costmap_ptr_->info.resolution,
                 current_costmap_ptr_->info.origin.position.y,
                 1.0 * current_costmap_ptr_->info.height * current_costmap_ptr_->info.resolution,
-                current_costmap_ptr_->info.resolution,
-                map_resolution
+                1.0, map_resolution
         );
 
-        unsigned int map_w = std::floor(current_costmap_ptr_->info.width / map_resolution);
-        unsigned int map_h = std::floor(current_costmap_ptr_->info.height / map_resolution);
+        unsigned int map_w = std::floor(current_costmap_ptr_->info.width);
+        unsigned int map_h = std::floor(current_costmap_ptr_->info.height);
         for (unsigned int w = 0; w < map_w; ++w) {
             for (unsigned int h = 0; h < map_h; ++h) {
-                auto x = static_cast<unsigned int> ((w + 0.5) * map_resolution
-                                                    / current_costmap_ptr_->info.resolution);
-                auto y = static_cast<unsigned int> ((h + 0.5) * map_resolution
-                                                    / current_costmap_ptr_->info.resolution);
-
-                if (current_costmap_ptr_->data[y * current_costmap_ptr_->info.width + x]) {
+                if (current_costmap_ptr_->data[h * current_costmap_ptr_->info.width + w]) {
                     kinodynamic_astar_searcher_ptr_->SetObstacle(w, h);
                 }
             }
@@ -169,7 +163,6 @@ void HybridAStarFlow::Run() {
                 ros::Duration(0.05).sleep();
             }
         }
-
 
         // debug
 //        std::cout << "visited nodes: " << kinodynamic_astar_searcher_ptr_->GetVisitedNodesNumber() << std::endl;

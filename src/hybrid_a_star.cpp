@@ -270,8 +270,8 @@ bool HybridAStar::HasObstacle(const Vec2i &grid_index) const {
 }
 
 void HybridAStar::SetObstacle(unsigned int x, unsigned int y) {
-    if (x < 0u || x > static_cast<unsigned int>(MAP_GRID_SIZE_X_)
-        || y < 0u || y > static_cast<unsigned int>(MAP_GRID_SIZE_Y_)) {
+    if (x > static_cast<unsigned int>(MAP_GRID_SIZE_X_)
+        || y > static_cast<unsigned int>(MAP_GRID_SIZE_Y_)) {
         return;
     }
 
@@ -423,8 +423,8 @@ void HybridAStar::DynamicModel(const double &step_size, const double &phi,
 
 double HybridAStar::Mod2Pi(const double &x) {
     double v = fmod(x, 2 * M_PI);
-  
-      if (v < -M_PI) {
+
+    if (v < -M_PI) {
         v += 2.0 * M_PI;
     } else if (v > M_PI) {
         v -= 2.0 * M_PI;

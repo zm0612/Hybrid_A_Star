@@ -35,7 +35,7 @@
 /*!
  * Trajectory optimization function
  *
- * Note: According to hyrbid a star's paper, I have not reproduced very good results.
+ * Note: According to hybrid a star's paper, I have not reproduced very good results.
  *       However, I have obtained a good trajectory in the front-end trajectory search stage,
  *       so even if I don't use back-end optimization,
  *       the trajectory can basically meet the usage requirements.
