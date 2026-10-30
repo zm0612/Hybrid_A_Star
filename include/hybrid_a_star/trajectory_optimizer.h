@@ -28,174 +28,127 @@
 #ifndef HYBRID_A_STAR_TRAJECTORY_OPTIMIZER_H
 #define HYBRID_A_STAR_TRAJECTORY_OPTIMIZER_H
 
-#include "type.h"
-
-#include <cmath>
+#include "trajectory.h"
+#include "esdf.h"
 
 /*!
- * Trajectory optimization function
+ * Back-end trajectory optimization using the Ceres non-linear least squares
+ * solver. Given the (reversal-cleaned) front-end trajectory it refines the (x, y)
+ * of every interior point while holding the start, the goal and every gear-shift
+ * (cusp) point fixed. The cost combines:
  *
- * Note: According to hybrid a star's paper, I have not reproduced very good results.
- *       However, I have obtained a good trajectory in the front-end trajectory search stage,
- *       so even if I don't use back-end optimization,
- *       the trajectory can basically meet the usage requirements.
+ *   - smoothness   : second difference of consecutive points (small curvature)
+ *   - reference     : stay close to the front-end path (well-posed, stable)
+ *   - obstacle      : keep a safety clearance using the ESDF (differentiable)
+ *   - curvature     : soft limit on path curvature => bounded turning radius,
+ *                     i.e. the non-holonomic / kinematic feasibility of the car
+ *   - length        : total arc length; shortens unnecessary meanders that the
+ *                     local (second-difference) smoothness term barely touches
+ *
+ * All multi-point terms are added only inside a monotonic-direction segment, so
+ * the optimizer never smooths across a reversal.
+ *
+ * Ceres headers are intentionally kept out of this file so that translation units
+ * that merely need the public interface do not have to compile against Ceres.
  */
 class TrajectoryOptimizer {
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    struct Config {
+        // Residual weights.
+        double w_smooth = 2.0;
+        double w_reference = 0.1;
+        double w_obstacle = 1.0;
+        double w_curvature = 2.0;
+        // Total-length penalty. A second-difference (curvature) smoothness term
+        // flattens sharp wiggles but barely affects long-wavelength S-curves
+        // (their per-point curvature is tiny), so a single solve leaves a slow
+        // meander behind. This term gives every interior point a direct incentive
+        // to straighten out; keep it small relative to w_smooth (its residual is
+        // ~ds, not ~ds^2). The obstacle barrier still forbids cutting corners.
+        double w_length = 0.1;
+
+        // Obstacle clearance model. More circles -> smaller radius -> the clearance
+        // requirement approaches the true half-width, so the term behaves as a
+        // collision barrier instead of over-pushing the path away from walls
+        // (which, against fixed cusp points, would create kinks in tight spaces).
+        double safety_margin = 0.1;   // extra clearance beyond the covering circles (m)
+        int num_circles = 5;          // vehicle footprint approximated by this many circles
+        // Reciprocal-barrier floor band (m): how close to the hard floor the penalty
+        // is allowed to grow before switching to a (steep) linear continuation.
+        // Smaller -> stiffer barrier (harder for smoothness to overpower).
+        double obstacle_eps = 0.05;
+
+        // Kinematics.
+        double max_curvature = 0.2;   // 1/m, = tan(max_steer) / wheel_base
+
+        // Smoothness taper near reversal (cusp) points. Strong smoothing flattens
+        // the natural turn-in geometry around a gear change, so the smoothness weight
+        // is scaled down the closer a point is to a cusp: full weight beyond
+        // cusp_taper_dist, down to (w_smooth * cusp_taper_min_ratio) right next to the
+        // cusp. The reference and curvature terms still apply there, so the maneuver
+        // stays anchored to the (feasible) front-end shape instead of being pulled
+        // straight.
+        double cusp_taper_dist = 2.0;      // arc length (m) over which the taper acts
+        double cusp_taper_min_ratio = 0.1; // smoothness weight ratio at the cusp
+
+        // Segments (between two cusps, or a cusp and an endpoint) shorter than this
+        // are frozen entirely: their points are held at the front-end geometry rather
+        // than optimized, so a tight maneuver between two nearby reversal points is
+        // not pulled straight. 0 disables this.
+        double min_opt_segment_length = 2.0;
+
+        // Hard-fix (no optimization at all) zones. Unlike the smoothness taper, every
+        // point inside these zones is held at the front-end geometry.
+        //   cusp_fix_dist     : freeze all points within this arc length (m) of a
+        //                       reversal point -> the trajectory just before and after
+        //                       a cusp is preserved exactly.
+        //   endpoint_fix_dist : freeze all points within this arc length (m) of the
+        //                       start / goal (in addition to always locking the start
+        //                       and goal position + heading).
+        double cusp_fix_dist = 0.0;
+        double endpoint_fix_dist = 0.0;
+
+        // Vehicle shape (matches HybridAStar::SetVehicleShape).
+        double vehicle_length = 4.7;
+        double vehicle_width = 2.0;
+        double rear_axle_dist = 1.3;
+
+        int max_iterations = 150;
+    };
 
     TrajectoryOptimizer() = default;
 
-    template<typename CheckCollisionFunction, typename NearestObstacleFunction>
-    VectorVec3d Optimize(CheckCollisionFunction CheckCollision, NearestObstacleFunction NearestObstacle,
-                         const VectorVec3d &path) {
-        const unsigned int N = path.size();
-        VecXd grad_f;
-        grad_f.resize(2 * N);
-        grad_f.setZero();
+    explicit TrajectoryOptimizer(const Config &config) : config_(config) {}
 
-        VecXd path_matrix(N * 2);
-        for (unsigned int i = 0; i < N; ++i) {
-            path_matrix.block(i * 2, 0, 2, 1) = path[i].head(2);
+    //! Set (or replace) the distance field used by the obstacle term. The ESDF
+    //! must outlive every subsequent Optimize() call.
+    void SetEsdf(const ESDF *esdf) { esdf_ = esdf; }
+
+    //! Derive the curvature limit from the car's wheel base and max steer angle.
+    void SetKinematics(double wheel_base, double max_steering_radian) {
+        if (wheel_base > 1e-6) {
+            config_.max_curvature = std::tan(std::abs(max_steering_radian)) / wheel_base;
         }
-
-        VecXd r, prev_d, prev_r;
-
-        unsigned int max_iteration = 100u;
-        for (unsigned int i = 0; i < max_iteration; ++i) {
-            grad_f.setZero();
-
-            for (unsigned int j = 2; j < N - 2; ++j) {
-                const Vec2d &x_2_j = path_matrix.block((j - 2) * 2, 0, 2, 1);
-                const Vec2d &x_1_j = path_matrix.block((j - 1) * 2, 0, 2, 1);
-                const Vec2d &x_j = path_matrix.block(j * 2, 0, 2, 1);
-                const Vec2d &x_j_1 = path_matrix.block((j + 1) * 2, 0, 2, 1);
-                const Vec2d &x_j_2 = path_matrix.block((j + 2) * 2, 0, 2, 1);
-
-                //non holonomic constraints
-                grad_f.block(2 * j, 0, 2, 1) +=
-                        w_k * CurvatureTerm(x_1_j, x_j, x_j_1);
-
-                // obstacle constraints
-                grad_f.block(2 * j, 0, 2, 1) +=
-                        w_o * ObstacleTerm(x_j, NearestObstacle(x_j.x(), x_j.y()));
-
-                // smooth constraints
-                grad_f.block(2 * j, 0, 2, 1) +=
-                        w_s * SmoothTerm(x_2_j, x_1_j, x_j, x_j_1, x_j_2);
-            }
-
-            prev_d = -grad_f;
-            path_matrix = path_matrix + alpha_ * prev_d * (w_k + w_s + w_o);
-        }
-
-        VectorVec3d optimized_path;
-        for (unsigned int i = 0; i < N - 1; ++i) {
-            Vec2d delta = path_matrix.block(2 * (i + 1), 0, 2, 1)
-                          - path_matrix.block(2 * i, 0, 2, 1);
-            double theta = std::atan2(delta.y(), delta.x());
-
-            optimized_path.emplace_back(Vec3d(path_matrix(2 * i, 0),
-                                              path_matrix(2 * i + 1, 0), theta));
-        }
-
-        return optimized_path;
     }
+
+    void SetVehicleShape(double length, double width, double rear_axle_dist) {
+        config_.vehicle_length = length;
+        config_.vehicle_width = width;
+        config_.rear_axle_dist = rear_axle_dist;
+    }
+
+    Config &config() { return config_; }
+
+    /*!
+     * Optimize a trajectory. Gears/cusps are preserved; (x, y) of interior points
+     * are refined and headings are recomputed from the optimized geometry. If no
+     * ESDF is set or the trajectory is too short the input is returned unchanged.
+     */
+    Trajectory Optimize(const Trajectory &init) const;
 
 private:
-
-    template<typename T>
-    T Clamp(const T value, T bound1, T bound2) {
-        if (bound1 > bound2) {
-            std::swap(bound1, bound2);
-        }
-
-        if (value < bound1) {
-            return bound1;
-        } else if (value > bound2) {
-            return bound2;
-        }
-        return value;
-    }
-
-    inline Vec2d ObstacleTerm(const Vec2d &x_i, const Vec2d &obstacle_coord) const {
-        Vec2d gradient;
-        gradient.setZero();
-
-        double obstacle_distance = (x_i - obstacle_coord).norm();
-        if (obstacle_distance <= d_max) {
-            gradient = 2 * (obstacle_distance - d_max) * (x_i - obstacle_coord).normalized();
-        }
-
-        return gradient;
-    }
-
-    static inline Vec2d SmoothTerm(const Vec2d &x_2_j, const Vec2d &x_1_j, const Vec2d &x_j,
-                                   const Vec2d &x_j_1, const Vec2d &x_j_2) {
-        return 2.0 * (x_2_j - 4.0 * x_1_j + 6 * x_j - 4 * x_j_1 + x_j_2);
-    }
-
-    inline Vec2d CurvatureTerm(const Vec2d &x_1_j,
-                               const Vec2d &x_j,
-                               const Vec2d &x_j_1) {
-        Vec2d delta_x_j = x_j - x_1_j;
-        Vec2d delta_x_j_1 = x_j_1 - x_j;
-
-        double delta_x_j_norm = delta_x_j.norm();
-        double delta_x_j_1_norm = delta_x_j_1.norm();
-
-        if (delta_x_j_norm > 0.0 && delta_x_j_1_norm > 0.0) {
-            double delta_phi = DeltaPhi(x_1_j, x_j, x_j_1);
-            if (delta_phi / delta_x_j_norm <= k_max) {
-                return Vec2d::Zero();
-            } else {
-                double temp_1 = 1.0 / delta_x_j_norm;
-                double temp_2 = -1.0 / std::sqrt(1 - std::pow(std::cos(delta_phi), 2));
-                double temp_4 = delta_phi / delta_x_j_norm / delta_x_j_norm;
-
-                Vec2d p1 = OrthogonalComplement(delta_x_j, -delta_x_j_1) / delta_x_j_1.norm() / delta_x_j.norm();
-                Vec2d p2 = OrthogonalComplement(-delta_x_j_1, delta_x_j) / delta_x_j_1.norm() / delta_x_j.norm();
-                Vec2d temp_3 = -p1 - p2;
-
-                Vec2d J_1_j = 2.0 * (delta_phi / delta_x_j_norm - k_max) *
-                              (temp_1 * temp_2 * p2 + temp_4 * delta_x_j.normalized());
-                Vec2d J_j = 2.0 * (delta_phi / delta_x_j_norm - k_max) *
-                            (temp_1 * temp_2 * temp_3 - temp_4 * delta_x_j.normalized());
-                Vec2d J_j_1 = 2.0 * (delta_phi / delta_x_j_norm - k_max) * (temp_1 * temp_2 * p1);
-
-                Vec2d grad = 0.25 * J_1_j + 0.5 * J_j + 0.25 * J_j_1;
-
-                if (std::isnan(grad.x()) || std::isnan(grad.y())) {
-                    return Vec2d::Zero();
-                } else {
-                    return grad;
-                }
-            }
-        }
-
-        return Vec2d::Zero();
-    }
-
-    inline double DeltaPhi(const Vec2d &x0, const Vec2d &x1, const Vec2d &x2) {
-        Vec2d delta_x0 = x1 - x0;
-        Vec2d delta_x1 = x2 - x1;
-        double project_length = delta_x0.transpose() * delta_x1;
-
-        return std::acos(Clamp<double>(project_length / (delta_x0.norm() * delta_x1.norm()), -1, 1));
-    }
-
-    static inline Vec2d OrthogonalComplement(const Vec2d &a, const Vec2d &b) {
-        return a - a.transpose() * b.normalized() * b.normalized();
-    }
-
-private:
-    double alpha_ = 0.1;
-    double w_o = 0.05;
-    double w_k = 0.01;
-    double w_s = 0.2;
-
-    double k_max = 0.01;
-    double d_max = 3.0;
+    Config config_;
+    const ESDF *esdf_ = nullptr;
 };
 
 #endif //HYBRID_A_STAR_TRAJECTORY_OPTIMIZER_H

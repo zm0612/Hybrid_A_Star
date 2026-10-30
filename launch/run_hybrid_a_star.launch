@@ -14,8 +14,8 @@
     <node pkg="map_server" type="map_server" name="map_server" args="$(find hybrid_a_star)/maps/map.yaml"/>
 
     <node pkg="hybrid_a_star" type="run_hybrid_astar" name="run_hybrid_astar" output="screen">
-        <param name="planner/steering_angle" value="15.0"/>
-        <param name="planner/steering_angle_discrete_num" value="1"/>
+        <param name="planner/steering_angle" value="30.0"/>
+        <param name="planner/steering_angle_discrete_num" value="3"/>
         <param name="planner/wheel_base" value="2.0"/>
         <param name="planner/segment_length" value="1.6"/>
         <param name="planner/segment_length_discrete_num" value="8"/>
@@ -23,6 +23,37 @@
         <param name="planner/reversing_penalty" value="3.0"/>
         <param name="planner/steering_change_penalty" value="2.0"/>
         <param name="planner/shot_distance" value="5.0"/>
+
+        <!-- ===== Trajectory post-processing / back-end optimization ===== -->
+        <param name="planner/enable_post_process" value="true"/>
+
+        <!-- Redundant reversal removal -->
+        <param name="planner/opt_min_segment_length" value="3.0"/>  <!-- collapse reversal segments shorter than this (m) -->
+        <param name="planner/opt_heading_tol" value="0.6"/>         <!-- max net heading change (rad) for a wiggle to be redundant -->
+
+        <!-- Ceres smoother weights -->
+        <param name="planner/opt_w_smooth" value="2.0"/>
+        <param name="planner/opt_w_reference" value="0.05"/>
+        <param name="planner/opt_w_obstacle" value="1.0"/>
+        <param name="planner/opt_w_curvature" value="2.0"/>
+        <param name="planner/opt_w_length" value="0.3"/>           <!-- shorten unnecessary meanders (keep small vs opt_w_smooth) -->
+        <param name="planner/opt_num_passes" value="3"/>          <!-- optimize+resample passes; more flattens long-wavelength sway -->
+
+        <!-- Clearance / kinematics / solver -->
+        <param name="planner/opt_safety_margin" value="0.1"/>       <!-- extra clearance beyond covering circles (m) -->
+        <param name="planner/opt_num_circles" value="5"/>           <!-- footprint approximated by N circles -->
+        <param name="planner/opt_obstacle_eps" value="0.1"/>       <!-- barrier floor band (m); smaller = stiffer obstacle barrier -->
+        <param name="planner/opt_max_iterations" value="150"/>
+
+        <!-- Smoothness taper near reversal points (keep the turn-in geometry unflattened) -->
+        <param name="planner/opt_cusp_taper_dist" value="5.0"/>       <!-- arc length (m) over which smoothness is tapered near a cusp -->
+        <param name="planner/opt_cusp_taper_min_ratio" value="0.1"/>  <!-- smoothness weight ratio right at the cusp (0=no smoothing) -->
+        <param name="planner/opt_min_opt_segment_length" value="2.0"/> <!-- segments shorter than this (between two cusps) are frozen, not optimized (0=off) -->
+
+        <!-- Hard-fix zones: points inside are NOT optimized at all (strongest knob) -->
+        <param name="planner/opt_cusp_fix_dist" value="2.0"/>         <!-- freeze all points within this arc length (m) before/after each reversal point (0=off) -->
+        <param name="planner/opt_endpoint_fix_dist" value="0.0"/>     <!-- freeze all points within this arc length (m) of start/goal (0=off; start/goal pos+heading are always locked) -->
+
     </node>
 
 </launch>

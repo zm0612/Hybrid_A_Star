@@ -6,12 +6,19 @@
     <maintainer email="849742405@qq.com">Zhang Zhimeng</maintainer>
     <license>BSD</license>
     <buildtool_depend>catkin</buildtool_depend>
-    <build_depend>roscpp</build_depend>
-    <build_depend>std_msgs</build_depend>
-    <build_export_depend>roscpp</build_export_depend>
-    <build_export_depend>std_msgs</build_export_depend>
-    <exec_depend>roscpp</exec_depend>
-    <exec_depend>std_msgs</exec_depend>
+
+    <depend>roscpp</depend>
+    <depend>std_msgs</depend>
+    <depend>nav_msgs</depend>
+    <depend>tf</depend>
+    <depend>visualization_msgs</depend>
+    <depend>map_server</depend>
+
+    <!-- System dependencies (resolved by rosdep). -->
+    <depend>libceres-dev</depend>
+    <depend>libeigen3-dev</depend>
+    <depend>libgoogle-glog-dev</depend>
+
     <export>
     </export>
 </package>

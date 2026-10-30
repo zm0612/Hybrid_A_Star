@@ -32,6 +32,9 @@
 #include "costmap_subscriber.h"
 #include "init_pose_subscriber.h"
 #include "goal_pose_subscriber.h"
+#include "esdf.h"
+#include "path_processor.h"
+#include "trajectory_optimizer.h"
 
 #include <ros/ros.h>
 
@@ -48,16 +51,24 @@ private:
 
     void ReadData();
 
-    bool HasStartPose();
+    bool HasStartPose() const;
 
-    bool HasGoalPose();
+    bool HasGoalPose() const;
 
-    void PublishPath(const VectorVec3d &path);
+    void PublishPath(const VectorVec3d &path) const;
 
-    void PublishSearchedTree(const VectorVec4d &searched_tree);
+    void PublishOptimizedPath(const VectorVec3d &path) const;
+
+    void PublishSearchedTree(const VectorVec4d &searched_tree) const;
 
     void PublishVehiclePath(const VectorVec3d &path, double width,
-                            double length, unsigned int vehicle_interval);
+                            double length, unsigned int vehicle_interval) const;
+
+    //! Build the ESDF from the current costmap and configure the optimizer.
+    void BuildDistanceField();
+
+    //! Full back-end: infer gears, remove redundant reversals, Ceres-smooth.
+    VectorVec3d PostProcess(const VectorVec3d &raw_path) const;
 
 private:
     std::shared_ptr<HybridAStar> kinodynamic_astar_searcher_ptr_;
@@ -66,8 +77,18 @@ private:
     std::shared_ptr<GoalPoseSubscriber2D> goal_pose_sub_ptr_;
 
     ros::Publisher path_pub_;
+    ros::Publisher optimized_path_pub_;
     ros::Publisher searched_tree_pub_;
     ros::Publisher vehicle_path_pub_;
+
+    ESDF esdf_;
+    PathProcessor path_processor_;
+    TrajectoryOptimizer trajectory_optimizer_;
+    bool enable_post_process_ = true;
+    double collision_clearance_ = 1.2; // circle radius used by the reverse-removal check
+    double resample_spacing_ = 0.2;    // uniform spacing of the final trajectory (m)
+    int opt_num_passes_ = 3;           // optimize + resample passes in the back-end
+    double vehicle_length_ = 4.7, vehicle_width_ = 2.0, rear_axle_dist_ = 1.3;
 
     std::deque<geometry_msgs::PoseWithCovarianceStampedPtr> init_pose_deque_;
     std::deque<geometry_msgs::PoseStampedPtr> goal_pose_deque_;

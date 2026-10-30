@@ -1,0 +1,9 @@
+.git
+.gitignore
+.idea
+cmake-build-*
+build
+devel
+*.o
+*.so
+images

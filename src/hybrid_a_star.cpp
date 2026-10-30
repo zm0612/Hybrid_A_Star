@@ -28,7 +28,6 @@
 #include "hybrid_a_star/hybrid_a_star.h"
 #include "hybrid_a_star/display_tools.h"
 #include "hybrid_a_star/timer.h"
-#include "hybrid_a_star/trajectory_optimizer.h"
 
 #include <iostream>
 
@@ -604,7 +603,7 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
         }
 
         count++;
-        if (count > 50000) {
+        if (count > 200000) {
             ROS_WARN("Exceeded the number of iterations, the search failed");
             return false;
         }
