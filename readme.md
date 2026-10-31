@@ -37,6 +37,7 @@ Since the author did not open source the algorithm, it took me weeks to reproduc
 <img src="images/img2.png" alt="img2" style="zoom: 33%;" />
 
 ## 2. Prerequisites
+**It is strongly recommended that you refer to Section 6 and run the program using Docker.**
 
 (1). **C++14 Compiler**
 
