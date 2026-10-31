@@ -37,6 +37,7 @@ Hybrid A Star 在 DARPA 城市挑战赛中取得了非常好的成绩。经过�
 <img src="images/img2.png" alt="img2" style="zoom: 33%;" />
 
 ## 2. 依赖项
+**强烈建议参考第6节，使用docker运行程序。**
 
 (1). **C++14 编译器**
 
